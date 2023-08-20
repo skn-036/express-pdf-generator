@@ -11,7 +11,7 @@ http://127.0.0.1:5000/generate-pdf
 POST
 
 # request paramaters
-absoute path to the header image file with respect to base url. for example, for a url https://picsum.photos/800/300, APP_URL in env file should be 'https://picsum.photos' and the header will be '/800/300'
+absoute path to the header image file with respect to base url. for example, for a url https://picsum.photos/800/300, APP_URL in env file should be 'https://picsum.photos' and the param will be '/800/300'
 
 ```javascript
 type RequestParams = {
