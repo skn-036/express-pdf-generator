@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import { urlencoded, json } from 'body-parser';
 import cors, { CorsOptions } from 'cors';
 import { generatePdf } from './controller';
-import env from './env';
+
 const app: Express = express();
 
 app.use(helmet());
@@ -25,10 +25,9 @@ app.use((_, res: Response, next: NextFunction) => {
 });
 
 app.use(cors(corsOptions));
-console.log(env);
 
 app.post('/generate-pdf', generatePdf);
 
-app.listen(env.port, () => {
+app.listen(5000, () => {
     console.log('app is listening on port 5000');
 });
