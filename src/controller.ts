@@ -1,12 +1,13 @@
 import { Request, Response } from 'express';
+import dotenv from 'dotenv';
 import puppeteer, { PDFOptions, Browser } from 'puppeteer';
 import axios from 'axios';
 import sizeof from 'image-size';
 import { fromBuffer } from 'file-type';
 
 import { Dimension, PdfPart, FileType } from './types';
-import env from './env';
 
+dotenv.config();
 const pageWidth = 596;
 
 export const generatePdf = async (req: Request, res: Response) => {
@@ -113,7 +114,7 @@ const fileToBase64 = async (
     errorMessage: string | null = null
 ) => {
     try {
-        const fileUrl = `${env.appUrl}${url}`;
+        const fileUrl = `${process.env?.APP_URL}${url}`;
 
         const response = await axios.get(fileUrl, {
             responseType: 'arraybuffer',
