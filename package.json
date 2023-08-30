@@ -21,6 +21,7 @@
         "file-type": "^16.5.4",
         "helmet": "^7.0.0",
         "image-size": "^1.0.2",
+        "pdf-img-convert": "^1.2.1",
         "pdf-lib": "^1.17.1",
         "puppeteer": "^21.0.3"
     },

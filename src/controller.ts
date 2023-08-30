@@ -3,6 +3,7 @@ import puppeteer, { PDFOptions, Browser } from 'puppeteer';
 import axios from 'axios';
 import sizeof from 'image-size';
 import { fromBuffer } from 'file-type';
+import pdf2img from 'pdf-img-convert';
 
 import { Dimension, PdfPart, FileType } from './types';
 import env from './env';
@@ -11,20 +12,19 @@ const pageWidth = 596;
 
 export const generatePdf = async (req: Request, res: Response) => {
     try {
-        const { header, body, footer, watermark } = req.body;
+        const { header, body, footer, watermark, original_cv } = req.body;
 
         let bodyHtml = convertNullToEmptyString(body);
 
         const { browser, page } = await launchPuppeteer();
-        await page.setContent(bodyHtml);
 
         let options: PDFOptions = {
             format: 'A4',
             margin: {
                 top: 72,
                 bottom: 72,
-                left: 72,
-                right: 72,
+                left: 0,
+                right: 0,
             },
         };
 
@@ -53,12 +53,18 @@ export const generatePdf = async (req: Request, res: Response) => {
             };
         }
 
+        let watermarkFile: {
+            dimensions: Dimension;
+            type: FileType;
+            content: string;
+        } | null = null;
+
         if (Boolean(watermark)) {
-            const watermarkFile = await fileToBase64(
+            watermarkFile = await fileToBase64(
                 watermark,
                 'Watermark file is not valid'
             );
-            if (watermarkFile.content) {
+            if (watermarkFile?.content) {
                 const watermarkHtml = `<img style="width: 280px; height: 280px; position: fixed; top: 281px; left: 158px; opacity: .25" src="${watermarkFile.content}">`;
 
                 options = {
@@ -92,6 +98,20 @@ export const generatePdf = async (req: Request, res: Response) => {
                 },
             };
         }
+
+        // if (original_cv) {
+        //     const x = await handleOriginalCv(original_cv, bodyHtml, options);
+        //     res.send(x);
+        //     return;
+        // }
+
+        bodyHtml = await handleOriginalCv(
+            original_cv,
+            bodyHtml,
+            options,
+            watermarkFile
+        );
+        await page.setContent(bodyHtml);
 
         const pdf = await page.pdf(options);
         await closePuppeteer(browser);
@@ -188,4 +208,72 @@ const launchPuppeteer = async () => {
 
 const closePuppeteer = async (browser: Browser) => {
     await browser.close();
+};
+
+const handleOriginalCv = async (
+    cvPath: string | undefined,
+    bodyHtml: string,
+    options: PDFOptions,
+    watermarkFile: {
+        dimensions: Dimension;
+        type: FileType;
+        content: string;
+    } | null
+) => {
+    if (!cvPath) {
+        return `<main style="margin-left: 72px; margin-right: 72px;">${bodyHtml}</main>`;
+    }
+    const fileUrl = `${env.appUrl}${cvPath}`;
+    const pdfPages = await pdf2img.convert(fileUrl, {
+        scale: 2.2,
+        base64: true,
+    });
+
+    const pdfPagesToBase64 = pdfPages.map(base64 => {
+        if (typeof base64 !== 'string') return '';
+        return `data:image/png;base64,${base64}`;
+    });
+
+    let html = `<main>`;
+
+    const bodyHtmlParts = bodyHtml
+        .split('{original_cv}')
+        .map(
+            part =>
+                `${html}<div style="margin-left: 72px; margin-right: 72px">${part}</div>`
+        );
+
+    const marginTop = options?.margin?.top
+        ? typeof options?.margin?.top === 'string'
+            ? parseInt(options?.margin?.top)
+            : options?.margin?.top
+        : 72;
+
+    const marginBottom = options?.margin?.bottom
+        ? typeof options?.margin?.bottom === 'string'
+            ? parseInt(options?.margin?.bottom)
+            : options?.margin?.bottom
+        : 72;
+
+    const imageWidth = `${pageWidth * 1.33}px`;
+    const imageHeight = `${(842 - marginTop - marginBottom) * 1.33}px`;
+
+    const pageBreakHtml = `<div style="page-break-after: always;"></div>`;
+    let pdfHtml = pageBreakHtml;
+
+    pdfPagesToBase64.forEach(imgSrc => {
+        pdfHtml = `${pdfHtml}<div style="width: ${imageWidth}; height: ${imageHeight}; position: relative;"><img src=${imgSrc} style="width: 100%; height: 100%;">${
+            watermarkFile?.content
+                ? `<img style="width: 280px; height: 280px; position: absolute; top: 50%; left: 50%; opacity: .25; z-index: 10; transform: translate(-50%, -50%);" src="${watermarkFile.content}">`
+                : ''
+        }</div>${pageBreakHtml}`;
+    });
+
+    if (bodyHtmlParts.length === 1) {
+        html = `${html}${bodyHtmlParts[0]}${pdfHtml}</main>`;
+    } else {
+        html = `${html}${bodyHtmlParts.join(pdfHtml)}</main>`;
+    }
+
+    return html;
 };
