@@ -26,7 +26,6 @@ export const generatePdf = async (req: Request, res: Response) => {
                 left: 0,
                 right: 0,
             },
-            path: 'output.pdf',
         };
 
         let headerHtml = '';
