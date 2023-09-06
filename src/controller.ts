@@ -20,15 +20,6 @@ export const generatePdf = async (req: Request, res: Response) => {
 
         let bodyHtml = convertNullToEmptyString(body);
 
-        let launchOptions: PuppeteerLaunchOptions = { headless: true };
-        if (env.environment === 'production') {
-            launchOptions = {
-                ...launchOptions,
-                executablePath: '/usr/bin/chromium-browser',
-                args: ['--no-sandbox'],
-            };
-        }
-
         const { browser, page } = await launchPuppeteer();
 
         let options: PDFOptions = {
@@ -213,7 +204,16 @@ const convertNullToEmptyString = (content: any): string => {
 };
 
 const launchPuppeteer = async () => {
-    const browser = await puppeteer.launch({ headless: 'new' });
+    let launchOptions: PuppeteerLaunchOptions = { headless: true };
+    if (env.environment === 'production') {
+        launchOptions = {
+            ...launchOptions,
+            executablePath: '/usr/bin/chromium-browser',
+            args: ['--no-sandbox'],
+        };
+    }
+
+    const browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
 
     return { browser, page };
