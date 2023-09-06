@@ -1,5 +1,9 @@
 import { Request, Response } from 'express';
-import puppeteer, { PDFOptions, Browser } from 'puppeteer';
+import puppeteer, {
+    PDFOptions,
+    Browser,
+    PuppeteerLaunchOptions,
+} from 'puppeteer';
 import axios from 'axios';
 import sizeof from 'image-size';
 import { fromBuffer } from 'file-type';
@@ -15,6 +19,15 @@ export const generatePdf = async (req: Request, res: Response) => {
         const { header, body, footer, watermark, original_cv } = req.body;
 
         let bodyHtml = convertNullToEmptyString(body);
+
+        let launchOptions: PuppeteerLaunchOptions = { headless: true };
+        if (env.environment === 'production') {
+            launchOptions = {
+                ...launchOptions,
+                executablePath: '/usr/bin/chromium-browser',
+                args: ['--no-sandbox'],
+            };
+        }
 
         const { browser, page } = await launchPuppeteer();
 
