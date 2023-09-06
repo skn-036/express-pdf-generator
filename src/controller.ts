@@ -1,5 +1,9 @@
 import { Request, Response } from 'express';
-import puppeteer, { PDFOptions, Browser } from 'puppeteer';
+import puppeteer, {
+    PDFOptions,
+    Browser,
+    PuppeteerLaunchOptions,
+} from 'puppeteer';
 import axios from 'axios';
 import sizeof from 'image-size';
 import { fromBuffer } from 'file-type';
@@ -200,7 +204,16 @@ const convertNullToEmptyString = (content: any): string => {
 };
 
 const launchPuppeteer = async () => {
-    const browser = await puppeteer.launch({ headless: 'new' });
+    let launchOptions: PuppeteerLaunchOptions = { headless: true };
+    if (env.environment === 'production') {
+        launchOptions = {
+            ...launchOptions,
+            executablePath: '/usr/bin/chromium-browser',
+            args: ['--no-sandbox'],
+        };
+    }
+
+    const browser = await puppeteer.launch(launchOptions);
     const page = await browser.newPage();
 
     return { browser, page };
