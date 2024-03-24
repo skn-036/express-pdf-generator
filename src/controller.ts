@@ -137,7 +137,7 @@ const fileToBase64 = async (
     errorMessage: string | null = null
 ) => {
     try {
-        const fileUrl = `${env.appUrl}${url}`;
+        const fileUrl = url.startsWith('https') ? url : `${env.appUrl}${url}`;
 
         const response = await axios.get(fileUrl, {
             responseType: 'arraybuffer',
@@ -236,7 +236,7 @@ const handleOriginalCv = async (
     if (!cvPath) {
         return `<main style="margin-left: 72px; margin-right: 72px;">${bodyHtml}</main>`;
     }
-    const fileUrl = `${env.appUrl}${cvPath}`;
+    const fileUrl = cvPath.startsWith('https') ? cvPath :`${env.appUrl}${cvPath}`;
     const pdfPages = await pdf2img.convert(fileUrl, {
         scale: 2.2,
         base64: true,
