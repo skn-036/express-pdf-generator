@@ -15,6 +15,7 @@
     "dependencies": {
         "axios": "^1.4.0",
         "body-parser": "^1.20.2",
+        "canvas": "^2.11.2",
         "cors": "^2.8.5",
         "dotenv": "^16.3.1",
         "express": "^4.18.2",
@@ -23,6 +24,7 @@
         "image-size": "^1.0.2",
         "pdf-img-convert": "^1.2.1",
         "pdf-lib": "^1.17.1",
+        "pdfjs-dist": "^4.0.379",
         "puppeteer": "^21.0.3"
     },
     "devDependencies": {
@@ -34,6 +36,7 @@
         "@types/helmet": "^4.0.0",
         "@types/image-size": "^0.8.0",
         "@types/node": "^20.4.10",
+        "@types/pdfjs-dist": "^2.10.378",
         "@types/puppeteer": "^7.0.4",
         "nodemon": "^3.0.1",
         "rimraf": "^5.0.1",

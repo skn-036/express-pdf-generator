@@ -1,0 +1,6 @@
+const a = {
+    body: '<figure class="table"><table style="border-color:hsl(0, 0%, 0%);border-style:double;"><tbody><tr><td style="border-color:hsl(0, 0%, 0%);border-style:double;">Name</td><td style="border-color:hsl(0, 0%, 0%);border-style:double;">Syed Mohsin&nbsp;</td></tr><tr><td style="border-color:hsl(0, 0%, 0%);border-style:double;">Age</td><td style="border-color:hsl(0, 0%, 0%);border-style:double;">&nbsp;</td></tr><tr><td style="border-color:hsl(0, 0%, 0%);border-style:double;">Gender</td><td style="border-color:hsl(0, 0%, 0%);border-style:double;">Male&nbsp;</td></tr><tr><td style="border-color:hsl(0, 0%, 0%);border-style:double;">Current Location</td><td style="border-color:hsl(0, 0%, 0%);border-style:double;">United Arab Emirates - Dubai - Dubai&nbsp;</td></tr><tr><td style="border-color:hsl(0, 0%, 0%);border-style:double;">Nationality</td><td style="border-color:hsl(0, 0%, 0%);border-style:double;">Afghan&nbsp;</td></tr></tbody></table></figure><p>{original_cv}&nbsp;</p>',
+    header: 'https://hirecraft.s3.ap-south-1.amazonaws.com/media/resume_format/header/demo_logo.jpg',
+    original_cv:
+        'https://hirecraft.s3.ap-south-1.amazonaws.com/media/client_resume_format/aQjVtKeJCZ8mJhLHxDY71EvdVfs2g5ngnR9cwaFauaZxZzszfO.pdf',
+};
