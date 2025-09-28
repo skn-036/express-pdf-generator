@@ -8,6 +8,7 @@ import axios from 'axios';
 import sizeof from 'image-size';
 import { fromBuffer } from 'file-type';
 import pdf2img from 'pdf-img-convert';
+import { PDFDocument } from 'pdf-lib';
 
 import { Dimension, PdfPart, FileType } from './types';
 import env from './env';
@@ -19,13 +20,18 @@ const pageWidth = 596;
  */
 export const generatePdf = async (req: Request, res: Response) => {
     try {
-        const { header, body, footer, watermark, original_cv } = req.body;
+        const {
+            header,
+            body,
+            footer,
+            watermark,
+            original_cv,
+            header_footer_in_original_cv,
+        } = req.body;
 
         let bodyHtml = convertNullToEmptyString(body);
-
         const { browser, page } = await launchPuppeteer();
 
-        // Default: no browser header/footer (prevents about:blank + 1/4)
         let options: PDFOptions = {
             format: 'A4',
             printBackground: true,
@@ -100,30 +106,168 @@ export const generatePdf = async (req: Request, res: Response) => {
             );
         }
 
-        // Build final HTML (fixes: no leading/trailing page-breaks, clean structure)
-        bodyHtml = await handleOriginalCv(original_cv, bodyHtml, options);
+        const shouldInlineOriginalCv = header_footer_in_original_cv === true;
+        if (shouldInlineOriginalCv) {
+            bodyHtml = await handleOriginalCv(original_cv, bodyHtml, options);
+        } else {
+            bodyHtml = await handleOriginalCv(undefined, bodyHtml, options);
+        }
 
-        // Inject a fixed watermark overlay across all pages (if provided)
         if (watermarkFile?.content) {
             bodyHtml = injectWatermark(bodyHtml, watermarkFile.content);
         }
 
         await page.setContent(bodyHtml, { waitUntil: 'networkidle0' });
-
-        const pdf = await page.pdf(options);
+        const pdfBuffer = await page.pdf(options);
         await closePuppeteer(browser);
 
-        res.set({
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': 'attachment; filename="document.pdf"',
-            'Content-Length': pdf.length,
-        }).send(pdf);
+        // If we didn't inline and original_cv exists, append it at the bottom
+        if (!shouldInlineOriginalCv && original_cv) {
+            const originalBuf = await fetchBuffer(original_cv);
+
+            // Optional sanity check: ensure it's a PDF; if not, throw a helpful error
+            const ft = await fromBuffer(originalBuf).catch(() => undefined);
+            if (!ft || ft.mime !== 'application/pdf') {
+                throw new Error(
+                    'original_cv must be a PDF when header_footer_in_original_cv is false.'
+                );
+            }
+
+            const merged = await mergePdfBuffers(
+                pdfBuffer,
+                Buffer.from(originalBuf)
+            );
+            return void res
+                .set({
+                    'Content-Type': 'application/pdf',
+                    'Content-Disposition':
+                        'attachment; filename="document.pdf"',
+                    'Content-Length': merged.length,
+                })
+                .send(merged);
+        }
+
+        // Otherwise, just return the Puppeteer PDF
+        return void res
+            .set({
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': 'attachment; filename="document.pdf"',
+                'Content-Length': pdfBuffer.length,
+            })
+            .send(pdfBuffer);
     } catch (error) {
-        res.status(403).send({
+        return void res.status(403).send({
             message: error instanceof Error ? error.message : 'Server error',
         });
     }
 };
+// export const generatePdf = async (req: Request, res: Response) => {
+//     try {
+//         const { header, body, footer, watermark, original_cv } = req.body;
+
+//         let bodyHtml = convertNullToEmptyString(body);
+
+//         const { browser, page } = await launchPuppeteer();
+
+//         // Default: no browser header/footer (prevents about:blank + 1/4)
+//         let options: PDFOptions = {
+//             format: 'A4',
+//             printBackground: true,
+//             preferCSSPageSize: true,
+//             displayHeaderFooter: false,
+//             margin: { top: 72, bottom: 72, left: 0, right: 0 },
+//         };
+
+//         // Prepare header/footer html if provided
+//         let headerHtml = '';
+//         if (header) {
+//             const headerFile = await fileToBase64(
+//                 header,
+//                 'Header file is not valid'
+//             );
+//             const headerPart = resolvePart(
+//                 headerFile.content,
+//                 'header',
+//                 headerFile.dimensions as Dimension
+//             );
+//             headerHtml = headerPart.html;
+
+//             options = {
+//                 ...options,
+//                 displayHeaderFooter: true,
+//                 headerTemplate: headerPart.html, // valid template to suppress defaults
+//                 footerTemplate: `<div style="font-size:0;width:100%">&nbsp;</div>`,
+//                 margin: {
+//                     ...options.margin,
+//                     top: headerPart.height + 36,
+//                 },
+//             };
+//         }
+
+//         if (footer) {
+//             const footerFile = await fileToBase64(
+//                 footer,
+//                 'Footer file is not valid'
+//             );
+//             const footerPart = resolvePart(
+//                 footerFile.content,
+//                 'footer',
+//                 footerFile.dimensions as Dimension
+//             );
+
+//             options = {
+//                 ...options,
+//                 displayHeaderFooter: true,
+//                 // Ensure both templates exist to avoid Chromium default footer
+//                 headerTemplate:
+//                     headerHtml ||
+//                     `<div style="font-size:0;width:100%">&nbsp;</div>`,
+//                 footerTemplate: footerPart.html,
+//                 margin: {
+//                     ...options.margin,
+//                     bottom: footerPart.height + 36,
+//                 },
+//             };
+//         }
+
+//         // Watermark is injected into page content, not via header/footer.
+//         let watermarkFile: {
+//             dimensions: Dimension;
+//             type: FileType;
+//             content: string;
+//         } | null = null;
+
+//         if (watermark) {
+//             watermarkFile = await fileToBase64(
+//                 watermark,
+//                 'Watermark file is not valid'
+//             );
+//         }
+
+//         // Build final HTML (fixes: no leading/trailing page-breaks, clean structure)
+//         bodyHtml = await handleOriginalCv(original_cv, bodyHtml, options);
+
+//         // Inject a fixed watermark overlay across all pages (if provided)
+//         if (watermarkFile?.content) {
+//             bodyHtml = injectWatermark(bodyHtml, watermarkFile.content);
+//         }
+
+//         await page.setContent(bodyHtml, { waitUntil: 'networkidle0' });
+
+//         const pdf = await page.pdf(options);
+//         await closePuppeteer(browser);
+
+//         res.set({
+//             'Content-Type': 'application/pdf',
+//             'Content-Disposition': 'attachment; filename="document.pdf"',
+//             'Content-Length': pdf.length,
+//         }).send(pdf);
+//     } catch (error) {
+//         res.status(403).send({
+//             message: error instanceof Error ? error.message : 'Server error',
+//         });
+//     }
+// };
 
 /**
  * Read a file (local or https) into data URL + image dimensions/type
@@ -206,6 +350,7 @@ const launchPuppeteer = async () => {
     if (env.environment === 'production') {
         launchOptions = {
             ...launchOptions,
+            headless: 'new',
             executablePath: '/usr/bin/chromium-browser',
             args: ['--no-sandbox'],
         };
@@ -230,9 +375,7 @@ const handleOriginalCv = async (
     options: PDFOptions
 ): Promise<string> => {
     // No original CV: simple wrapper with margins
-    if (!cvPath) {
-        return `<main style="margin-left:72px;margin-right:72px;">${bodyHtml}</main>`;
-    }
+    if (!cvPath) return setHtmlWrapperContent(bodyHtml);
 
     const fileUrl = cvPath.startsWith('https')
         ? cvPath
@@ -275,7 +418,26 @@ const handleOriginalCv = async (
         )
         .join(pageBreakHtml);
 
-    // Split body by placeholder and join with pdfHtml in between
+    return setHtmlWrapperContent(bodyHtml, pdfHtml);
+
+    // // Split body by placeholder and join with pdfHtml in between
+    // const parts = bodyHtml
+    //     .split('{original_cv}')
+    //     .map(
+    //         (part) =>
+    //             `<div style="margin-left:72px;margin-right:72px">${part}</div>`
+    //     );
+
+    // let html = `<main>`;
+    // html += parts.length === 1 ? `${parts[0]}${pdfHtml}` : parts.join(pdfHtml);
+    // html += `</main>`;
+    // return html;
+};
+
+const setHtmlWrapperContent = (
+    bodyHtml: string,
+    joinBy: string = ''
+): string => {
     const parts = bodyHtml
         .split('{original_cv}')
         .map(
@@ -284,7 +446,7 @@ const handleOriginalCv = async (
         );
 
     let html = `<main>`;
-    html += parts.length === 1 ? `${parts[0]}${pdfHtml}` : parts.join(pdfHtml);
+    html += parts.length === 1 ? `${parts[0]}${joinBy}` : parts.join(joinBy);
     html += `</main>`;
     return html;
 };
@@ -309,4 +471,47 @@ const injectWatermark = (html: string, dataUrl: string): string => {
   `;
     // Place before content so it renders on each printed page
     return `${wm}${html}`;
+};
+
+const fetchBuffer = async (pathOrUrl: string): Promise<Uint8Array> => {
+    const url = /^https?:\/\//i.test(pathOrUrl)
+        ? pathOrUrl
+        : `${env.appUrl}${pathOrUrl}`;
+    const { data } = await axios.get<ArrayBuffer>(url, {
+        responseType: 'arraybuffer',
+    });
+    return new Uint8Array(data);
+};
+
+const toU8 = (buf: Buffer | Uint8Array | ArrayBuffer): Uint8Array => {
+    if (buf instanceof Uint8Array && !(buf instanceof Buffer)) return buf; // already fine
+    if (buf instanceof Buffer)
+        return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    return new Uint8Array(buf); // ArrayBuffer -> view
+};
+
+const mergePdfBuffers = async (
+    topPdf: Buffer,
+    bottomPdf: Buffer
+): Promise<Buffer> => {
+    const merged = await PDFDocument.create();
+
+    const topDoc = await PDFDocument.load(toU8(topPdf), {
+        ignoreEncryption: true,
+    });
+    const bottomDoc = await PDFDocument.load(toU8(bottomPdf), {
+        ignoreEncryption: true,
+    });
+
+    const topPages = await merged.copyPages(topDoc, topDoc.getPageIndices());
+    topPages.forEach((p) => merged.addPage(p));
+
+    const bottomPages = await merged.copyPages(
+        bottomDoc,
+        bottomDoc.getPageIndices()
+    );
+    bottomPages.forEach((p) => merged.addPage(p));
+
+    const mergedBytes = await merged.save(); // Uint8Array
+    return Buffer.from(mergedBytes);
 };
